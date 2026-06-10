@@ -1,201 +1,231 @@
-
+// ================================================
+// FoodExpress Dispatch Engine
+// File: kitchen_rider.cpp
+// Member: Ayesha Yaseen | Roll No: 79
+// Contains: IntQueue (Queue), Kitchen Module, RiderMgr Module
+// ================================================
 
 #include <iostream>
 #include <string>
 using namespace std;
 
-const int MAX_NODES = 8;
-const int INF = 9999;
+const int MAX_REST = 10;
+const int MAX_RIDER = 10;
 
-// ==================== GRAPH MODULE ====================
-// constructor initialis the garph
-class Graph {
-    int mat[MAX_NODES][MAX_NODES];
-    bool block[MAX_NODES][MAX_NODES];
-    string name[MAX_NODES];
+// ==================== QUEUE (Kitchen Line) ====================
+class IntQueue {
+    int arr[50];
+    int front, rear, size;
 
 public:
-    Graph() {
-        for (int i = 0; i < MAX_NODES; i++) {
-            name[i] = "Node" + to_string(i);
-            for (int j = 0; j < MAX_NODES; j++) {
-                if (i == j) mat[i][j] = 0;
-                else mat[i][j] = INF;
-                block[i][j] = false; // mark all roads open
-            }
+    IntQueue() {
+        front = 0;
+        rear = -1;
+        size = 0;
+    }
+
+    bool empty() { return size == 0; }
+
+    void enq(int x) {
+        if (size < 50) {
+            rear = (rear + 1) % 50;
+            arr[rear] = x;
+            size++;
         }
     }
 
-    void setName(int i, string n) { name[i] = n; }
-
-    // Road add karo (bidirectional)
-    void road(int u, int v, int w) {
-        mat[u][v] = w;
-        mat[v][u] = w;
-    }
-
-    // FOR  Road block 
-
-    void blockRoad(int u, int v) {
-        block[u][v] = true;
-        block[v][u] = true;
-        cout << "Road between " << name[u] << " and " << name[v] << " blocked!" << endl;
-    }
-
-    // FOR ROAD OPEN
-    void openRoad(int u, int v) {
-        block[u][v] = false;
-        block[v][u] = false;
-        cout << "Road between " << name[u] << " and " << name[v] << " opened!" << endl;
-    }
-    // USE FOR BOOLEAN 
-    bool open(int u, int v) {
-        if (block[u][v]) return false;
-        if (mat[u][v] == INF) return false;
+    bool deq(int& x) {
+        if (size == 0) return false;
+        x = arr[front];
+        front = (front + 1) % 50;
+        size--;
         return true;
     }
 
-    // ==================== DIJKSTRA ====================
-    void dijkstra(int src, int dest) {
-        int dist[MAX_NODES], parent[MAX_NODES];
-        bool vis[MAX_NODES];
-
-        for (int i = 0; i < MAX_NODES; i++) {
-            dist[i] = INF;
-            parent[i] = -1;
-            vis[i] = false;
-        }
-        dist[src] = 0;
-
-        for (int k = 0; k < MAX_NODES; k++) {
-            int u = -1;
-            for (int i = 0; i < MAX_NODES; i++) {
-                if (!vis[i] && (u == -1 || dist[i] < dist[u])) u = i;
-            }
-            if (u == -1 || dist[u] == INF) break;
-            vis[u] = true;
-
-            for (int v = 0; v < MAX_NODES; v++) {
-                if (!open(u, v)) continue;
-                if (dist[u] + mat[u][v] < dist[v]) {
-                    dist[v] = dist[u] + mat[u][v];
-                    parent[v] = u;
-                }
-            }
-        }
-
-        // Check nodes distances
-        if (dest == -1) {
-            cout << "\nDistances from " << name[src] << ":" << endl;
-            for (int i = 0; i < MAX_NODES; i++) {
-                if (i == src) continue;
-                cout << name[src] << " -> " << name[i] << " : ";
-                if (dist[i] == INF) cout << "No path";
-                else cout << dist[i] << " km";  // maesure in km
-                cout << endl;
-            }
+    void display() {
+        if (size == 0) {
+            cout << "Queue empty" << endl;
             return;
         }
-
-        if (dist[dest] == INF) {
-            cout << "No path available!" << endl;
-            return;
-        }
-
-        // for  Path reconstruct 
-        int path[20], len = 0, cur = dest;
-        while (cur != -1) {
-            path[len] = cur;
-            len++;
-            cur = parent[cur];
-        }
-
-        cout << "\nShortest Route: " << name[src] << " to " << name[dest];
-        cout << " = " << dist[dest] << " km" << endl;
-        cout << "Path: ";
-        for (int i = len - 1; i >= 0; i--) {
-            cout << name[path[i]];
-            if (i > 0) cout << " -> ";
+        int i = front;
+        cout << "Queue: ";
+        for (int k = 0; k < size; k++) {
+            cout << arr[i];
+            if (k < size - 1) cout << " -> ";
+            i = (i + 1) % 50;
         }
         cout << endl;
-        // calculate the delivery paymnet
-        cout << "Delivery Cost: Rs." << dist[dest] * 10 << endl;
     }
+};
 
-    // ==================== COMPARE ROUTES ====================
+// ==================== KITCHEN MODULE ====================
+struct Restaurant {
+    int id;
+    string name;
+    int capacity;
+    int load;
+    IntQueue q;
+};
 
-    void compareRoute(int s, int d) {
-        cout << "\n--- Main Route ---" << endl;
-        dijkstra(s, d);
-        if (mat[s][d] != INF) {
-            int save = mat[s][d];
-            mat[s][d] = INF;
-            mat[d][s] = INF;
-            cout << "\n--- Alternate Route ---" << endl;
-            dijkstra(s, d);
-            mat[s][d] = save;
-            mat[d][s] = save;
+class Kitchen {
+    Restaurant r[MAX_REST];
+    int total;
+
+public:
+    Kitchen() { total = 0; }
+
+    void add(int id, string name, int cap) {
+        if (total < MAX_REST) {
+            r[total].id = id;
+            r[total].name = name;
+            r[total].capacity = cap;
+            r[total].load = 0;
+            total++;
         }
     }
 
-    // ==================== BFS ====================
-    void bfs(int src) {
-        bool vis[MAX_NODES];
-        int q[20], f = 0, r = 0;
-        for (int i = 0; i < MAX_NODES; i++) vis[i] = false;
+    int find(string name) {
+        for (int i = 0; i < total; i++)
+            if (r[i].name == name) return i;
+        return -1;
+    }
 
-        vis[src] = true;
-        q[r] = src;
-        r++;
-
-        cout << "\nBFS Traversal from " << name[src] << ": ";
-        while (f < r) {
-            int u = q[f];
-            f++;
-            cout << name[u] << " ";
-            for (int v = 0; v < MAX_NODES; v++) {
-                if (!vis[v] && open(u, v)) {
-                    vis[v] = true;
-                    q[r] = v;
-                    r++;
-                }
+    // Overloaded kitchen ka load doosri pe shift karo
+    bool rebalance(int oid, string skip) {
+        int best = -1, minL = 9999;
+        for (int i = 0; i < total; i++) {
+            if (r[i].name == skip) continue;
+            if (r[i].load < r[i].capacity && r[i].load < minL) {
+                minL = r[i].load;
+                best = i;
             }
         }
-        cout << endl;
+        if (best == -1) {
+            cout << "All kitchens full!" << endl;
+            return false;
+        }
+        r[best].load++;
+        r[best].q.enq(oid);
+        cout << "Order rebalanced to " << r[best].name << endl;
+        return true;
     }
 
-    // ==================== DFS ====================
-    void dfsRec(int u, bool vis[]) {
-        vis[u] = true;
-        cout << name[u] << " ";
-        for (int v = 0; v < MAX_NODES; v++) {
-            if (!vis[v] && open(u, v))
-                dfsRec(v, vis);
+    // Order kitchen ko assign karo
+    bool assign(int oid, string name) {
+        int i = find(name);
+        if (i == -1) {
+            cout << "Restaurant not found." << endl;
+            return false;
+        }
+        if (r[i].load >= r[i].capacity) {
+            cout << name << " is full, rebalancing..." << endl;
+            return rebalance(oid, name);
+        }
+        r[i].load++;
+        r[i].q.enq(oid);
+        cout << "Order sent to " << name << ", estimated wait: ~" << (r[i].load * 5) << " min" << endl;
+        return true;
+    }
+
+    // Order complete karo
+    void complete(string name) {
+        int i = find(name);
+        if (i == -1) {
+            cout << "Restaurant not found." << endl;
+            return;
+        }
+        int oid;
+        if (r[i].q.deq(oid)) {
+            if (r[i].load > 0) r[i].load--;
+            cout << "Order #" << oid << " is ready at " << name << "!" << endl;
+        }
+        else {
+            cout << "No orders in queue." << endl;
         }
     }
 
-    void dfs(int src) {
-        bool vis[MAX_NODES];
-        for (int i = 0; i < MAX_NODES; i++) vis[i] = false;
-        cout << "\nDFS Traversal from " << name[src] << ": ";
-        dfsRec(src, vis);
-        cout << endl;
+    // Sab kitchens ka status dikhao
+    void show() {
+        cout << "\n--- Kitchen Status ---" << endl;
+        for (int i = 0; i < total; i++) {
+            cout << r[i].name << " | Load: " << r[i].load << "/" << r[i].capacity;
+            if (r[i].load >= r[i].capacity) cout << " [FULL]";
+            cout << endl;
+            r[i].q.display();
+        }
+    }
+};
+
+// ==================== RIDER MODULE ====================
+struct Rider {
+    int id;
+    string name;
+    int load;
+    int cap;
+    int node;
+};
+
+class RiderMgr {
+    Rider list[MAX_RIDER];
+    int total;
+
+public:
+    RiderMgr() { total = 0; }
+
+    void add(int id, string name, int cap, int node) {
+        if (total < MAX_RIDER) {
+            list[total].id = id;
+            list[total].name = name;
+            list[total].cap = cap;
+            list[total].load = 0;
+            list[total].node = node;
+            total++;
+        }
     }
 
-    // ==================== REROUTE ====================
-    // 
-    // create new route after old route block
+    // Best available rider ko assign karo
+    bool assign(int oid, int dest) {
+        int best = -1, score = 9999;
+        for (int i = 0; i < total; i++) {
+            if (list[i].load >= list[i].cap) continue;
+            int d = list[i].node - dest;
+            if (d < 0) d = -d;
+            int s = list[i].load * 10 + d;
+            if (s < score) {
+                score = s;
+                best = i;
+            }
+        }
+        if (best == -1) {
+            cout << "No rider available right now." << endl;
+            return false;
+        }
+        list[best].load++;
+        list[best].node = dest;
+        cout << list[best].name << " assigned to order #" << oid << endl;
+        return true;
+    }
 
-    void reroute(int s, int d, int bu, int bv) {
-        cout << "\n--- Reroute Demo ---" << endl;
-        cout << "Original route:" << endl;
-        dijkstra(s, d);
+    // Delivery complete
+    void done(int rid, int oid) {
+        for (int i = 0; i < total; i++) {
+            if (list[i].id == rid) {
+                if (list[i].load > 0) list[i].load--;
+                cout << "Order #" << oid << " delivered by " << list[i].name << "!" << endl;
+                return;
+            }
+        }
+        cout << "Rider not found." << endl;
+    }
 
-        blockRoad(bu, bv);
-        cout << "\nAfter road block, new route:" << endl;
-        dijkstra(s, d);
-
-        openRoad(bu, bv);
-        cout << "Road restored." << endl;
+    // Sab riders dikhao
+    void show() {
+        cout << "\n--- Riders ---" << endl;
+        for (int i = 0; i < total; i++) {
+            cout << "ID:" << list[i].id
+                << " | " << list[i].name
+                << " | Load:" << list[i].load << "/" << list[i].cap
+                << " | Node:" << list[i].node << endl;
+        }
     }
 };
